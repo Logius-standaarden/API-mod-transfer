@@ -1,0 +1,186 @@
+<h2>Design rules</h2>
+
+<h3>Summary</h3>
+
+<div id="design-rule-summary"></div>
+
+<h3>Rules</h3>
+
+<div class="rule" id="/transfer/threshold" data-type="functional">
+    <p class="rulelab">Agree on a size threshold above which this module applies</p>
+    <dl>
+        <dt>Statement</dt>
+        <dd>
+            <p>Sender and receiver MAY agree bilaterally on a payload size threshold above which this module applies. In lieu of such an agreement, this module SHOULD be applied for payloads over 20 MiB.</p>
+        </dd>
+        <dt>Rationale</dt>
+        <dd>
+            <p>Size limits depend on the infrastructure of the sender and receiver. Agreeing on a limit is therefore preferred. A default is provided to not force a negotiation for each integration.</p>
+        </dd>
+    </dl>
+</div>
+
+<div class="rule" id="/transfer/metadata" data-type="technical">
+    <p class="rulelab">Describe a large file using a metadata resource</p>
+    <dl>
+        <dt>Statement</dt>
+        <dd>
+            <p>A large file MUST be described as a JSON <dfn>metadata resource</dfn> containing: <code>fileName</code>, <code>contentType</code>, <code>size</code> (bytes), and <code>contentUri</code>. It MAY also contain <code>createdAt</code> and <code>expiresAt</code>.</p>
+            <p>When receiving a file, the API MUST verify that the size of the received content matches <code>size</code>. A mismatch MUST be treated as an unsuccessful transfer.</p>
+            <aside class="example" title="Metadata resource">
+<pre class="http">GET /files/80444340-6d5b-4e6c-8192-b1b935502790 HTTP/1.1</pre>
+<pre class="http">HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "fileName": "file.pdf",
+  "contentType": "application/pdf",
+  "size": 2147483648,
+  "createdAt": "2026-01-01T09:00:00Z",
+  "expiresAt": "2026-01-15T09:00:00Z",
+  "contentUri": "https://api.example.org/v1/files/80444340-6d5b-4e6c-8192-b1b935502790/content"
+}</pre>
+            </aside>
+        </dd>
+        <dt>Rationale</dt>
+        <dd>
+            <p>A receiver needs to know what it is about to transfer so it can commit storage, bandwidth, and processing time. The optional availability window avoids transfer attempts for content that has been removed.</p>
+        </dd>
+        <dt>How to test</dt>
+        <dd>
+            <ol>
+                <li>Retrieve the metadata resource and validate the presence of the required fields.</li>
+                <li>Transfer content to a push <code>contentUri</code> with an incorrect <code>size</code> value and verify it is rejected.</li>
+            </ol>
+        </dd>
+    </dl>
+</div>
+
+<div class="rule" id="/transfer/range" data-type="technical">
+    <p class="rulelab">Support HTTP range requests when retrieving large files</p>
+    <dl>
+        <dt>Statement</dt>
+        <dd>
+            <p>When presenting a file for retrieval, the API MUST support range requests with the range unit set to <code>bytes</code>, as defined in [[RFC9110]] (section 14). This MUST be indicated with <code>Accept-Ranges: bytes</code> in the response header.</p>
+            <p>The response header MUST also include a strong entity-tag (<code>ETag</code>), so the receiver can reliably resume the transfer with <code>If-Range</code>.</p>
+            <aside class="example" title="Pull with range request">
+<pre class="http">GET /files/80444340-6d5b-4e6c-8192-b1b935502790/content HTTP/1.1
+Range: bytes=1048576-
+If-Range: "8f2c1b4e9a"</pre>
+<pre class="http">HTTP/1.1 206 Partial Content
+Content-Range: bytes 1048576-2147483647/2147483648
+Accept-Ranges: bytes
+ETag: "8f2c1b4e9a"
+Content-Digest: sha-256=:Fw8SCU41fk3m26+GAXStg+us/0SflGTjbvfuOBYaDQ4=:
+Repr-Digest: sha-256=:o0vGm8t1aMYw54e3f7zFEl9CDkEDpMl9fGG4bH29778=:</pre>
+            </aside>
+            <div class="note">
+                <p>This rule only applies to retrieval, even though RFC 9110 mentions partial <code>PUT</code> via <code>Content-Range</code>. According to the Internet-Draft [[[?httpbis-resumable-upload]]]: "there are caveats that affect its deployability". The aforementioned draft offers a method for resumable uploads. It is a work in progress and therefore not included as a rule in this module.</p>
+            </div>
+        </dd>
+        <dt>Rationale</dt>
+        <dd>
+            <p>Large transfers take longer and are therefore more likely to be interrupted. With range support, the transfer can be resumed without having the previously received data go to waste.</p>
+        </dd>
+        <dt>How to test</dt>
+        <dd>
+            <ol>
+                <li>Send a <code>GET</code> request without a <code>Range</code> header.
+                    <ul><li>Validate the response is <code>200</code> and contains the <code>Accept-Ranges: bytes</code> and <code>ETag</code> headers.</li></ul>
+                </li>
+                <li>Send a <code>GET</code> request with a <code>Range</code> header.
+                    <ul><li>Validate the response is <code>206</code> and with a correct <code>Content-Range</code> header.</li></ul>
+                </li>
+                <li>Send a <code>GET</code> request with a <code>Range</code> header and an <code>If-Range</code> that does not match the <code>ETag</code>.
+                    <ul><li>Validate the response is <code>200</code> instead of <code>206</code>.</li></ul>
+                </li>
+            </ol>
+        </dd>
+    </dl>
+</div>
+
+<div class="rule" id="/transfer/integrity" data-type="technical">
+    <p class="rulelab">Use integrity fields to verify transfers</p>
+    <dl>
+        <dt>Statement</dt>
+        <dd>
+            <p>Requests and responses transferring large files (to or from <code>contentUri</code>) MUST include <code>Content-Digest</code> [[RFC9530]] with <code>sha-256</code> or stronger.</p>
+            <p>Responses transferring large files MUST also include <code>Repr-Digest</code> [[RFC9530]].</p>
+            <p>When receiving a file, the API MUST compute the digest of the received content and verify it matches <code>Content-Digest</code>. A mismatch MUST be treated as an unsuccessful transfer.</p>
+            <div class="note">
+                <p>A response may contain only a fragment of the file (see <a href="#/transfer/range">/transfer/range</a>), in which case <code>Content-Digest</code> covers only the content of that message. <code>Repr-Digest</code> covers the complete file, regardless of range used.</p>
+            </div>
+            <aside class="example" title="Pull with integrity fields">
+<pre class="http">GET /files/80444340-6d5b-4e6c-8192-b1b935502790/content HTTP/1.1</pre>
+<pre class="http">HTTP/1.1 200 OK
+Content-Type: application/pdf
+Accept-Ranges: bytes
+ETag: "8f2c1b4e9a"
+Content-Digest: sha-256=:o0vGm8t1aMYw54e3f7zFEl9CDkEDpMl9fGG4bH29778=:
+Repr-Digest: sha-256=:o0vGm8t1aMYw54e3f7zFEl9CDkEDpMl9fGG4bH29778=:</pre>
+        </aside>
+        </dd>
+        <dt>Rationale</dt>
+        <dd>
+            <p>Large transfers are more likely to be corrupted. Validating the arrived content alleviates this concern.</p>
+            <p>If the file is retrieved in parts, the receiver needs a digest that covers the whole file instead of a part.</p>
+        </dd>
+        <dt>How to test</dt>
+        <dd>
+            <ol>
+                <li>Verify the response of a pull <code>contentUri</code> contains <code>Content-Digest</code> and <code>Repr-Digest</code> using <code>sha-256</code> or stronger.</li>
+                <li>Transfer content to a push <code>contentUri</code> with an incorrect <code>Content-Digest</code> value and verify it is rejected.</li>
+            </ol>
+        </dd>
+    </dl>
+</div>
+
+<div class="rule" id="/transfer/upload" data-type="technical">
+    <p class="rulelab">Request an upload location, then use HTTP PUT to push</p>
+    <dl>
+        <dt>Statement</dt>
+        <dd>
+            <p>An API accepting large files MUST publish an endpoint to which the sender can <code>POST</code> a partial [=metadata resource=] containing <code>fileName</code>, <code>contentType</code>, <code>size</code>. Upon acceptance, the API MUST respond with <code>201 Created</code> with the <code>Location</code> header pointing to the metadata resource and a body with the completed metadata resource.</p>
+            <p>The API MUST support HTTP <code>PUT</code> requests to the <code>contentUri</code>.</p>
+            <aside class="example" title="Push exchange">
+<pre class="http">POST /files HTTP/1.1
+Content-Type: application/json
+
+{
+  "fileName": "file.pdf",
+  "contentType": "application/pdf",
+  "size": 2147483648
+}</pre>
+<pre class="http">HTTP/1.1 201 Created
+Content-Type: application/json
+Location: https://api.example.org/v1/files/80444340-6d5b-4e6c-8192-b1b935502790
+
+{
+  "fileName": "file.pdf",
+  "contentType": "application/pdf",
+  "size": 2147483648,
+  "createdAt": "2026-01-01T09:00:00Z",
+  "expiresAt": "2026-01-15T09:00:00Z",
+  "contentUri": "https://api.example.org/v1/files/80444340-6d5b-4e6c-8192-b1b935502790/content"
+}</pre>
+<pre class="http">PUT /files/80444340-6d5b-4e6c-8192-b1b935502790/content HTTP/1.1
+Content-Type: application/pdf
+Content-Digest: sha-256=:o0vGm8t1aMYw54e3f7zFEl9CDkEDpMl9fGG4bH29778=:</pre>
+<pre class="http">HTTP/1.1 204 No Content</pre>
+            </aside>
+        </dd>
+        <dt>Rationale</dt>
+        <dd>
+            <p>The receiver should be the one to decide the location of a large file sent to their server. Through <code>POST</code> the sender can request a location in an automated fashion. This also gives the receiver a chance to refuse the transfer based on content type or size before time and bandwidth are wasted.</p>
+            <p>Large transfers take longer and are therefore more likely to be interrupted. Resending the file should not create another file, but overwrite the previous attempt. That's why <code>PUT</code> with its idempotent nature is chosen over <code>POST</code> for the file transfer.</p>
+        </dd>
+        <dt>How to test</dt>
+        <dd>
+            <ol>
+                <li>Validate <code>contentUri</code> accepts <code>PUT</code>.</li>
+                <li>Verify a <code>201</code> response is defined including a <code>Location</code> header and a body in the metadata resource format.</li>
+            </ol>
+        </dd>
+    </dl>
+</div>
+
