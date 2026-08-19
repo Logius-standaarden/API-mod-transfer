@@ -136,13 +136,21 @@ public class ServerToClientResource {
         try (var inputStream =
                 classloader.getResourceAsStream("large-files/" + fileIdentifier + ".txt")) {
             if (inputStream == null) {
-                throw new BadRequestException("File could not be found");
+                throw HttpProblem.builder()
+                        .withTitle("Could not obtain file")
+                        .withStatus(Response.Status.BAD_REQUEST)
+                        .withDetail("File does not exist")
+                        .build();
             }
             return new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))
                     .lines()
                     .collect(Collectors.joining());
         } catch (IOException e) {
-            throw new BadRequestException("File could not be found");
+            throw HttpProblem.builder()
+                    .withTitle("Could not obtain file")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail("File could not be obtained")
+                    .build();
         }
     }
 

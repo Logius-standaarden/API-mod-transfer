@@ -32,6 +32,19 @@ class ServerToClientResourceTest {
     }
 
     @Test
+    void testMissingMetadataResourceResultsInBadRequest() {
+        given().when()
+                .get("/server-to-client/does-not-exist")
+                .then()
+                .statusCode(400)
+                .contentType("application/problem+json")
+                .body("status", Matchers.equalTo(400))
+                .body("title", Matchers.equalTo("Could not obtain file"))
+                .body("detail", Matchers.equalTo("File does not exist"))
+                .body("instance", Matchers.equalTo("/server-to-client/does-not-exist"));
+    }
+
+    @Test
     void testNoRangeReturnsFullFileContent() {
         given().when()
                 .get(LARGE_FILE_CONTENT_LOCATION)
