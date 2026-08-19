@@ -70,7 +70,7 @@ public class ServerToClientResource {
                     .build();
         }
 
-        var rangeHeaderIndices = getRangeHeaderIndices(rangeHeader.get());
+        var rangeHeaderIndices = getRangeHeaderIndices(fullFileContent, rangeHeader.get());
         int startIndex = rangeHeaderIndices.startIndex();
         int endIndex = rangeHeaderIndices.endIndex();
 
@@ -154,8 +154,30 @@ public class ServerToClientResource {
         }
     }
 
-    private static RangeHeaderIndices getRangeHeaderIndices(String rangeHeaderContent) {
+    private static RangeHeaderIndices getRangeHeaderIndices(
+            String fullFileContent, String rangeHeaderContent) {
         var ranges = getRangeHeaderStrings(rangeHeaderContent);
+        if (ranges[0].isEmpty()) {
+            var fileLength = fullFileContent.length();
+            try {
+                var startIndex = fileLength - Integer.parseInt(ranges[1]);
+                if (startIndex < 0) {
+                    throw HttpProblem.builder()
+                            .withTitle("Invalid range header content")
+                            .withStatus(Response.Status.BAD_REQUEST)
+                            .withDetail("Negative range larger than file content")
+                            .build();
+                }
+
+                return new RangeHeaderIndices(startIndex, fileLength);
+            } catch (NumberFormatException e) {
+                throw HttpProblem.builder()
+                        .withTitle("Invalid range header content")
+                        .withStatus(Response.Status.BAD_REQUEST)
+                        .withDetail("Range header values should be numbers")
+                        .build();
+            }
+        }
         int startIndex;
         int endIndex;
         try {

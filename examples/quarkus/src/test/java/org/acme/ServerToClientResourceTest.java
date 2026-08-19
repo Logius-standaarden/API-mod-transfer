@@ -155,6 +155,36 @@ class ServerToClientResourceTest {
     }
 
     @Test
+    void testNegativeRangeLastPartOfFileReturnsPartialContent() {
+        given().header("Range", "bytes=-15")
+                .when()
+                .get(LARGE_FILE_CONTENT_LOCATION)
+                .then()
+                .statusCode(206)
+                .contentType("text/plain")
+                .body(Matchers.equalTo("is really large"))
+                .header("Accept-Ranges", "bytes")
+                .header("Content-Range", "bytes 20-35/35")
+                .header("Repr-Digest", REPR_DIGEST_FOR_FILE)
+                .header("Content-Digest", "sha-256=:xSb2IKgXuZtC/PJUnGzSsJzchqwtETJQG/RjIrfjXNQ=:")
+                .header("ETag", ETAG_FOR_FILE);
+    }
+
+    @Test
+    void testNegativeRangeTooLargeResultsInBadRequest() {
+        given().header("Range", "bytes=-130")
+                .when()
+                .get(LARGE_FILE_CONTENT_LOCATION)
+                .then()
+                .statusCode(400)
+                .contentType("application/problem+json")
+                .body("status", Matchers.equalTo(400))
+                .body("title", Matchers.equalTo("Invalid range header content"))
+                .body("detail", Matchers.equalTo("Negative range larger than file content"))
+                .body("instance", Matchers.equalTo(LARGE_FILE_CONTENT_LOCATION));
+    }
+
+    @Test
     void testMatchingIfRangeReturnsPartialContent() {
         given().header("Range", "bytes=10-13")
                 .header("If-Range", ETAG_FOR_FILE)
