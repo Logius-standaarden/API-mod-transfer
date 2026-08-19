@@ -109,7 +109,7 @@ public class ServerToClientResource {
                 .orElse(false);
     }
 
-    private String computeContentDigest(String content) {
+    static String computeContentDigest(String content) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
 
