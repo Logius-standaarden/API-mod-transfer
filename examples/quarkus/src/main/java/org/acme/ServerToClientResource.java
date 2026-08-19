@@ -1,8 +1,8 @@
 package org.acme;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.EntityTag;
-import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -58,19 +58,21 @@ public class ServerToClientResource {
             @PathParam("fileIdentifier") String fileIdentifier,
             @HeaderParam("Range") Optional<String> rangeHeader,
             @HeaderParam("If-Range") Optional<String> ifRangeHeader) {
-        var rangeHeaderIndices = getRangeHeaderIndices(rangeHeader);
-        int startIndex = rangeHeaderIndices.startIndex();
-        int endIndex = rangeHeaderIndices.endIndex();
-
         var fullFileContent = this.getFileContent(fileIdentifier);
         var entityTag = computeEntityTag(fullFileContent);
-        if (doesNotMatchIfRangeHeader(ifRangeHeader, entityTag)) {
+        var digestForFullFile = computeContentDigest(fullFileContent);
+        if (rangeHeader.isEmpty() || doesNotMatchIfRangeHeader(ifRangeHeader, entityTag)) {
             return Response.ok(fullFileContent)
                     .tag(new EntityTag(entityTag))
                     .header("Accept-Ranges", "bytes")
-                    .header("Repr-Digest", computeContentDigest(fullFileContent))
+                    .header("Repr-Digest", digestForFullFile)
+                    .header("Content-Digest", digestForFullFile)
                     .build();
         }
+
+        var rangeHeaderIndices = getRangeHeaderIndices(rangeHeader.get());
+        int startIndex = rangeHeaderIndices.startIndex();
+        int endIndex = rangeHeaderIndices.endIndex();
 
         var totalFileSize = fullFileContent.length();
         if (startIndex > totalFileSize || endIndex > totalFileSize) {
@@ -88,7 +90,7 @@ public class ServerToClientResource {
                         "Content-Range",
                         "bytes %s-%s/%s".formatted(startIndex, endIndex, totalFileSize))
                 .header("Content-Digest", computeContentDigest(fileRangeContent))
-                .header("Repr-Digest", computeContentDigest(fullFileContent))
+                .header("Repr-Digest", digestForFullFile)
                 .build();
     }
 
@@ -97,12 +99,14 @@ public class ServerToClientResource {
      * fullFileContent. This means that if the header is not present, it will be treated as okay.
      *
      * @param ifRangeHeader The contents of the "If-Range" header, if any
-     * @param fullFileContent The full contents of the file
+     * @param entityTag The computed entityTag of the file content
      * @return true iff the ifRangeHeader is present and it does not match the computed hash of
      *     fullFileContent
      */
     private Boolean doesNotMatchIfRangeHeader(Optional<String> ifRangeHeader, String entityTag) {
-        return ifRangeHeader.map((ifRange) -> !ifRange.equals(entityTag)).orElse(false);
+        return ifRangeHeader
+                .map((ifRange) -> !ifRange.equals("\"%s\"".formatted(entityTag)))
+                .orElse(false);
     }
 
     private String computeContentDigest(String content) {
@@ -142,32 +146,45 @@ public class ServerToClientResource {
         }
     }
 
-    private static RangeHeaderIndices getRangeHeaderIndices(Optional<String> rangeHeader) {
-        var ranges = getRangeHeaderStrings(rangeHeader);
+    private static RangeHeaderIndices getRangeHeaderIndices(String rangeHeaderContent) {
+        var ranges = getRangeHeaderStrings(rangeHeaderContent);
         int startIndex;
         int endIndex;
         try {
             startIndex = Integer.parseInt(ranges[0]);
             endIndex = Integer.parseInt(ranges[1]);
         } catch (NumberFormatException e) {
-            throw new BadRequestException("Range header values should be numbers");
+            throw HttpProblem.builder()
+                    .withTitle("Invalid range header content")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail("Range header values should be numbers")
+                    .build();
         }
         if (endIndex <= startIndex) {
-            throw new BadRequestException("End index should be larger than start");
+            throw HttpProblem.builder()
+                    .withTitle("Invalid range header content")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail("End index should be larger than start")
+                    .build();
         }
         return new RangeHeaderIndices(startIndex, endIndex);
     }
 
-    private static String[] getRangeHeaderStrings(Optional<String> rangeHeader) {
-        var rangeHeaderContent =
-                rangeHeader.orElseThrow(
-                        () -> new BadRequestException("Did not specify range header"));
+    private static String[] getRangeHeaderStrings(String rangeHeaderContent) {
         if (!rangeHeaderContent.startsWith("bytes=")) {
-            throw new BadRequestException("Range header should start with \"bytes=\"");
+            throw HttpProblem.builder()
+                    .withTitle("Invalid range header content")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail("Range header should start with \"bytes=\"")
+                    .build();
         }
         var ranges = rangeHeaderContent.substring("bytes=".length()).split("-");
         if (ranges.length != 2) {
-            throw new BadRequestException("Range header should have two values for range");
+            throw HttpProblem.builder()
+                    .withTitle("Invalid range header content")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail("Range header should have two values for range")
+                    .build();
         }
         return ranges;
     }
