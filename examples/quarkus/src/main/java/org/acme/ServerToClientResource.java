@@ -138,7 +138,7 @@ public class ServerToClientResource {
             if (inputStream == null) {
                 throw HttpProblem.builder()
                         .withTitle("Could not obtain file")
-                        .withStatus(Response.Status.BAD_REQUEST)
+                        .withStatus(Response.Status.NOT_FOUND)
                         .withDetail("File does not exist")
                         .build();
             }
@@ -148,7 +148,7 @@ public class ServerToClientResource {
         } catch (IOException e) {
             throw HttpProblem.builder()
                     .withTitle("Could not obtain file")
-                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withStatus(Response.Status.NOT_FOUND)
                     .withDetail("File could not be obtained")
                     .build();
         }
@@ -164,7 +164,7 @@ public class ServerToClientResource {
                 if (startIndex < 0) {
                     throw HttpProblem.builder()
                             .withTitle("Invalid range header content")
-                            .withStatus(Response.Status.BAD_REQUEST)
+                            .withStatus(Response.Status.REQUESTED_RANGE_NOT_SATISFIABLE)
                             .withDetail("Negative range larger than file content")
                             .build();
                 }

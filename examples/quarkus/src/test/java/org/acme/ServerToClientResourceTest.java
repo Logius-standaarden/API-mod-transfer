@@ -36,9 +36,9 @@ class ServerToClientResourceTest {
         given().when()
                 .get("/server-to-client/does-not-exist")
                 .then()
-                .statusCode(400)
+                .statusCode(404)
                 .contentType("application/problem+json")
-                .body("status", Matchers.equalTo(400))
+                .body("status", Matchers.equalTo(404))
                 .body("title", Matchers.equalTo("Could not obtain file"))
                 .body("detail", Matchers.equalTo("File does not exist"))
                 .body("instance", Matchers.equalTo("/server-to-client/does-not-exist"));
@@ -176,9 +176,9 @@ class ServerToClientResourceTest {
                 .when()
                 .get(LARGE_FILE_CONTENT_LOCATION)
                 .then()
-                .statusCode(400)
+                .statusCode(416)
                 .contentType("application/problem+json")
-                .body("status", Matchers.equalTo(400))
+                .body("status", Matchers.equalTo(416))
                 .body("title", Matchers.equalTo("Invalid range header content"))
                 .body("detail", Matchers.equalTo("Negative range larger than file content"))
                 .body("instance", Matchers.equalTo(LARGE_FILE_CONTENT_LOCATION));

@@ -18,6 +18,8 @@ class ClientToServerResourceTest {
     private static final String LARGE_FILE_CONTENT_LOCATION =
             "/client-to-server/%s/content".formatted(SUPPORTED_FILE_IDENTIFIER);
     private static final String LARGE_FILE_NAME = "%s.txt".formatted(SUPPORTED_FILE_IDENTIFIER);
+    private static final String REPR_DIGEST_FOR_FILE =
+            "sha-256=:Levte/OrSs4iJPUpNF81GcVa5NQVMq8ZNIGSonN86zE=:";
     public static final String LARGE_FILE_CONTENT = "This is an uploaded file that is really large";
 
     @Test
@@ -47,12 +49,32 @@ class ClientToServerResourceTest {
     @Test
     void testUploadFileWithContent() {
         given().contentType("text/plain")
+                .header("Content-Digest", REPR_DIGEST_FOR_FILE)
                 .body(LARGE_FILE_CONTENT)
                 .when()
                 .put(LARGE_FILE_CONTENT_LOCATION)
                 .then()
                 .statusCode(204)
                 .contentType("text/plain")
-                .header("Content-Digest", "sha-256=:Levte/OrSs4iJPUpNF81GcVa5NQVMq8ZNIGSonN86zE=:");
+                .header("Repr-Digest", REPR_DIGEST_FOR_FILE);
+    }
+
+    @Test
+    void testUploadFileWithInvalidDigestResultsInBadRequest() {
+        given().contentType("text/plain")
+                .header("Content-Digest", "sha-256=:wrong:")
+                .body(LARGE_FILE_CONTENT)
+                .when()
+                .put(LARGE_FILE_CONTENT_LOCATION)
+                .then()
+                .statusCode(400)
+                .contentType("application/problem+json")
+                .body("status", Matchers.equalTo(400))
+                .body("title", Matchers.equalTo("Content-Digest mismatch"))
+                .body(
+                        "detail",
+                        Matchers.equalTo(
+                                "Computed digest based on file content does not match provided Content-Digest"))
+                .body("instance", Matchers.equalTo(LARGE_FILE_CONTENT_LOCATION));
     }
 }

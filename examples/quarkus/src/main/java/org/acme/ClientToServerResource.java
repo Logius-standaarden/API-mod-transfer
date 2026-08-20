@@ -1,5 +1,6 @@
 package org.acme;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.*;
 
 import jakarta.ws.rs.core.Response;
@@ -32,11 +33,23 @@ public class ClientToServerResource {
     @PUT
     @Path("/{fileIdentifier}/content")
     public Response putFileContent(
-            @PathParam("fileIdentifier") String fileIdentifier, String fileContent) {
+            @PathParam("fileIdentifier") String fileIdentifier,
+            @HeaderParam("Content-Digest") String contentDigest,
+            String fileContent) {
+        var computedContentDigest = ServerToClientResource.computeContentDigest(fileContent);
+        if (!contentDigest.equals(computedContentDigest)) {
+            throw HttpProblem.builder()
+                    .withTitle("Content-Digest mismatch")
+                    .withStatus(Response.Status.BAD_REQUEST)
+                    .withDetail(
+                            "Computed digest based on file content does not match provided Content-Digest")
+                    .build();
+        }
+
         return Response.ok()
                 .status(Response.Status.NO_CONTENT)
                 .header("Content-Type", "text/plain")
-                .header("Content-Digest", ServerToClientResource.computeContentDigest(fileContent))
+                .header("Repr-Digest", computedContentDigest)
                 .build();
     }
 }
