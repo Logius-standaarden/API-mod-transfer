@@ -88,7 +88,7 @@ public class ServerToClientResource {
                 .header("Accept-Ranges", "bytes")
                 .header(
                         "Content-Range",
-                        "bytes %s-%s/%s".formatted(startIndex, endIndex, totalFileSize))
+                        "bytes %s-%s/%s".formatted(startIndex, endIndex - 1, totalFileSize))
                 .header("Content-Digest", computeContentDigest(fileRangeContent))
                 .header("Repr-Digest", digestForFullFile)
                 .build();

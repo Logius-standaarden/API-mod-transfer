@@ -148,7 +148,7 @@ class ServerToClientResourceTest {
                 .contentType("text/plain")
                 .body(Matchers.equalTo("fil"))
                 .header("Accept-Ranges", "bytes")
-                .header("Content-Range", "bytes 10-13/35")
+                .header("Content-Range", "bytes 10-12/35")
                 .header("Repr-Digest", REPR_DIGEST_FOR_FILE)
                 .header("Content-Digest", "sha-256=:4BVa2bszMXotZewPuxyxoNDP/ZAnBgNgdTRYjWn2uhY=:")
                 .header("ETag", ETAG_FOR_FILE);
@@ -164,7 +164,7 @@ class ServerToClientResourceTest {
                 .contentType("text/plain")
                 .body(Matchers.equalTo("is really large"))
                 .header("Accept-Ranges", "bytes")
-                .header("Content-Range", "bytes 20-35/35")
+                .header("Content-Range", "bytes 20-34/35")
                 .header("Repr-Digest", REPR_DIGEST_FOR_FILE)
                 .header("Content-Digest", "sha-256=:xSb2IKgXuZtC/PJUnGzSsJzchqwtETJQG/RjIrfjXNQ=:")
                 .header("ETag", ETAG_FOR_FILE);
@@ -195,7 +195,7 @@ class ServerToClientResourceTest {
                 .contentType("text/plain")
                 .body(Matchers.equalTo("fil"))
                 .header("Accept-Ranges", "bytes")
-                .header("Content-Range", "bytes 10-13/35")
+                .header("Content-Range", "bytes 10-12/35")
                 .header("Repr-Digest", REPR_DIGEST_FOR_FILE)
                 .header("Content-Digest", "sha-256=:4BVa2bszMXotZewPuxyxoNDP/ZAnBgNgdTRYjWn2uhY=:")
                 .header("ETag", ETAG_FOR_FILE);
