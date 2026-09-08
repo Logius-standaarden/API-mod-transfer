@@ -49,7 +49,11 @@ class ClientToServerResourceTest {
                 .body("contentType", Matchers.equalTo("text/plain"))
                 .body(
                         "contentUri",
-                        Matchers.matchesPattern("/client-to-server/files/[^/]+/content"));
+                        Matchers.matchesPattern(
+                                RestAssured.baseURI
+                                        + ":"
+                                        + RestAssured.port
+                                        + "/client-to-server/files/[^/]+/content"));
     }
 
     @Test
@@ -84,7 +88,7 @@ class ClientToServerResourceTest {
                         .post("/client-to-server")
                         .andReturn();
 
-        var contentUri = createdMetadataResource.path("contentUri").toString();
+        var contentUri = URI.create(createdMetadataResource.path("contentUri"));
         given().contentType("text/plain")
                 .header("Content-Digest", REPR_DIGEST_FOR_FILE)
                 .body(LARGE_FILE_CONTENT.substring(0, 5))
@@ -99,7 +103,7 @@ class ClientToServerResourceTest {
                         "detail",
                         Matchers.equalTo(
                                 "Computed file length 5 is not equal to expected file length 45"))
-                .body("instance", Matchers.equalTo(contentUri));
+                .body("instance", Matchers.equalTo(contentUri.getPath()));
     }
 
     @Test
@@ -130,7 +134,7 @@ class ClientToServerResourceTest {
                         .post("/client-to-server")
                         .andReturn();
 
-        var contentUri = createdMetadataResource.path("contentUri").toString();
+        var contentUri = URI.create(createdMetadataResource.path("contentUri"));
         given().contentType("text/plain")
                 .header("Content-Digest", "sha-256=:wrong:")
                 .body(LARGE_FILE_CONTENT)
@@ -145,7 +149,7 @@ class ClientToServerResourceTest {
                         "detail",
                         Matchers.equalTo(
                                 "Computed digest based on file content does not match provided Content-Digest"))
-                .body("instance", Matchers.equalTo(contentUri));
+                .body("instance", Matchers.equalTo(contentUri.getPath()));
     }
 
     // Test dat file length wel overeenkomt met de geregistreerde metadata resource

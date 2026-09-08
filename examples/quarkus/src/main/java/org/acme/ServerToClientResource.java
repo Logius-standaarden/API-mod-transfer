@@ -76,9 +76,10 @@ public class ServerToClientResource {
 
         var totalFileSize = fullFileContent.length();
         if (startIndex > totalFileSize || endIndex > totalFileSize) {
-            return Response.status(Response.Status.REQUESTED_RANGE_NOT_SATISFIABLE)
-                    .header("Accept-Ranges", "bytes")
-                    .header("Content-Range", "bytes */%s".formatted(totalFileSize))
+            throw invalidRangeContentProblem(totalFileSize)
+                    .withTitle("Invalid range header content")
+                    .withDetail("Request range is too large")
+                    .withStatus(Response.Status.REQUESTED_RANGE_NOT_SATISFIABLE)
                     .build();
         }
         var fileRangeContent = fullFileContent.substring(startIndex, endIndex);
@@ -156,22 +157,23 @@ public class ServerToClientResource {
 
     private static RangeHeaderIndices getRangeHeaderIndices(
             String fullFileContent, String rangeHeaderContent) {
-        var ranges = getRangeHeaderStrings(rangeHeaderContent);
+        var totalFileSize = fullFileContent.length();
+        var ranges = getRangeHeaderStrings(rangeHeaderContent, totalFileSize);
+
         if (ranges[0].isEmpty()) {
-            var fileLength = fullFileContent.length();
             try {
-                var startIndex = fileLength - Integer.parseInt(ranges[1]);
+                var startIndex = totalFileSize - Integer.parseInt(ranges[1]);
                 if (startIndex < 0) {
-                    throw HttpProblem.builder()
+                    throw invalidRangeContentProblem(totalFileSize)
                             .withTitle("Invalid range header content")
                             .withStatus(Response.Status.REQUESTED_RANGE_NOT_SATISFIABLE)
                             .withDetail("Negative range larger than file content")
                             .build();
                 }
 
-                return new RangeHeaderIndices(startIndex, fileLength);
+                return new RangeHeaderIndices(startIndex, totalFileSize);
             } catch (NumberFormatException e) {
-                throw HttpProblem.builder()
+                throw invalidRangeContentProblem(totalFileSize)
                         .withTitle("Invalid range header content")
                         .withStatus(Response.Status.BAD_REQUEST)
                         .withDetail("Range header values should be numbers")
@@ -184,14 +186,14 @@ public class ServerToClientResource {
             startIndex = Integer.parseInt(ranges[0]);
             endIndex = Integer.parseInt(ranges[1]);
         } catch (NumberFormatException e) {
-            throw HttpProblem.builder()
+            throw invalidRangeContentProblem(totalFileSize)
                     .withTitle("Invalid range header content")
                     .withStatus(Response.Status.BAD_REQUEST)
                     .withDetail("Range header values should be numbers")
                     .build();
         }
         if (endIndex <= startIndex) {
-            throw HttpProblem.builder()
+            throw invalidRangeContentProblem(totalFileSize)
                     .withTitle("Invalid range header content")
                     .withStatus(Response.Status.BAD_REQUEST)
                     .withDetail("End index should be larger than start")
@@ -200,9 +202,9 @@ public class ServerToClientResource {
         return new RangeHeaderIndices(startIndex, endIndex);
     }
 
-    private static String[] getRangeHeaderStrings(String rangeHeaderContent) {
+    private static String[] getRangeHeaderStrings(String rangeHeaderContent, int totalFileSize) {
         if (!rangeHeaderContent.startsWith("bytes=")) {
-            throw HttpProblem.builder()
+            throw invalidRangeContentProblem(totalFileSize)
                     .withTitle("Invalid range header content")
                     .withStatus(Response.Status.BAD_REQUEST)
                     .withDetail("Range header should start with \"bytes=\"")
@@ -210,13 +212,19 @@ public class ServerToClientResource {
         }
         var ranges = rangeHeaderContent.substring("bytes=".length()).split("-");
         if (ranges.length != 2) {
-            throw HttpProblem.builder()
+            throw invalidRangeContentProblem(totalFileSize)
                     .withTitle("Invalid range header content")
                     .withStatus(Response.Status.BAD_REQUEST)
                     .withDetail("Range header should have two values for range")
                     .build();
         }
         return ranges;
+    }
+
+    private static HttpProblem.Builder invalidRangeContentProblem(int totalFileSize) {
+        return HttpProblem.builder()
+                .withHeader("Accept-Ranges", "bytes")
+                .withHeader("Content-Range", "bytes */%s".formatted(totalFileSize));
     }
 
     private record RangeHeaderIndices(int startIndex, int endIndex) {}

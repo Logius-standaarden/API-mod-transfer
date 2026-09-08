@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.*;
 
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.net.URI;
@@ -20,9 +21,13 @@ public class ClientToServerResource {
     static final Map<UUID, MetadataResource> REGISTERED_METADATA_RESOURCES = new HashMap<>();
 
     @POST
-    public Response registerNewFile(CreateFileRecord createFileRecord) {
+    public Response registerNewFile(CreateFileRecord createFileRecord, UriInfo uriInfo) {
         var fileIdentifier = UUID.randomUUID();
-        var contentUri = "/client-to-server/files/" + fileIdentifier + "/content";
+        var contentUri =
+                uriInfo.getBaseUriBuilder()
+                        .uri("/client-to-server/files/" + fileIdentifier + "/content")
+                        .build()
+                        .toASCIIString();
         var metadataResource =
                 new MetadataResource(
                         createFileRecord.fileName(),
