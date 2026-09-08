@@ -63,4 +63,60 @@ app.MapGet("/server-to-client/{fileIdentifier}/content", (string fileIdentifier,
     return Results.File(content, "text/plain", enableRangeProcessing: true, entityTag: entityTag);
 });
 
+var registrations = new Dictionary<Guid, MetadataResource>();
+
+// /transfer/upload: "Request an upload location..."
+app.MapPost("/client-to-server", (MetadataResourcePost upload) =>
+{
+    var fileIdentifier = Guid.NewGuid();
+    var metadata = new MetadataResource(
+        upload.FileName,
+        upload.ContentType,
+        upload.Size,
+        $"/client-to-server/{fileIdentifier}/content");
+
+    registrations[fileIdentifier] = metadata;
+
+    return Results.Created($"/client-to-server/{fileIdentifier}", metadata);
+});
+
+app.MapGet("/client-to-server/{fileIdentifier:guid}", (Guid fileIdentifier) =>
+    registrations.TryGetValue(fileIdentifier, out var metadata)
+        ? Results.Ok(metadata)
+        : Results.Problem(title: "Could not obtain file", detail: "File does not exist",
+            statusCode: StatusCodes.Status404NotFound));
+
+// /transfer/upload: "...then use HTTP PUT to push"
+app.MapPut("/client-to-server/{fileIdentifier:guid}/content", async (Guid fileIdentifier, HttpRequest request) =>
+{
+    if (!registrations.TryGetValue(fileIdentifier, out var metadata))
+        return Results.Problem(title: "Could not accept file", detail: "Not a registered upload location.",
+            statusCode: StatusCodes.Status404NotFound);
+
+    using var buffer = new MemoryStream();
+    await request.Body.CopyToAsync(buffer);
+    var content = buffer.ToArray();
+
+    // /transfer/metadata: size check
+    if (content.Length != metadata.Size)
+        return Results.Problem(title: "Could not accept file",
+            detail: $"Expected {metadata.Size} bytes, received {content.Length}",
+            statusCode: StatusCodes.Status400BadRequest);
+
+    // /transfer/integrity: "MUST include Content-Digest"
+    var claimedDigest = request.Headers["Content-Digest"].ToString();
+    if (string.IsNullOrEmpty(claimedDigest))
+        return Results.Problem(title: "Could not accept file",
+            detail: "Missing Content-Digest",
+            statusCode: StatusCodes.Status400BadRequest);
+
+    // /transfer/integrity: "API MUST compute the digest of the received content and verify it matches Content-Digest"
+    if (claimedDigest != $"sha-256=:{Convert.ToBase64String(SHA256.HashData(content))}:")
+        return Results.Problem(title: "Could not accept file",
+            detail: "Content-Digest does not match the received content",
+            statusCode: StatusCodes.Status400BadRequest);
+
+    return Results.NoContent();
+});
+
 app.Run();
