@@ -4,7 +4,7 @@ const LARGE_FILE_IDENTIFIER = "80444340-6d5b-4e6c-8192-b1b935502790";
 const LARGE_FILE_CONTENT = "This is a file that is really large";
 const LARGE_FILE_CONTENT_LOCATION = "/server-to-client/" + LARGE_FILE_IDENTIFIER + "/content";
 const LARGE_FILE_NAME = LARGE_FILE_IDENTIFIER + ".txt";
-const SERVER_URL = "http://localhost:8080";
+const SERVER_URL = process.env["SERVER_URL"] || "http://localhost:8080";
 const CONTROLLER_BASE_PATH = SERVER_URL + "/server-to-client/";
 
 const REPR_DIGEST_FOR_FILE = "sha-256=:9R51cqDzX3bcID+v1/vfdTZ0EJ7uUjrHhZl9FEBI7JI=:";

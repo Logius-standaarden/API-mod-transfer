@@ -3,7 +3,7 @@ import assert from "node:assert";
 const LARGE_FILE_CONTENT = "This is an uploaded file that is really large";
 const LARGE_FILE_DIGEST = "sha-256=:Levte/OrSs4iJPUpNF81GcVa5NQVMq8ZNIGSonN86zE=:";
 const LARGE_FILE_NAME = "large-file.txt";
-const SERVER_URL = "http://localhost:8080";
+const SERVER_URL = process.env["SERVER_URL"] || "http://localhost:8080";
 const CONTROLLER_BASE_PATH = SERVER_URL + "/client-to-server/";
 
 describe("client-to-server", function () {
